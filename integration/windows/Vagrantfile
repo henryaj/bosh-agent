@@ -1,22 +1,116 @@
+winrm_username = "vagrant"
+winrm_password = ENV.fetch "WINRM_PASSWORD" do
+  puts "WINRM_PASSWORD not set, using 'vagrant'"
+  "vagrant"
+end
+
+access_key_id = ENV.fetch "AWS_ACCESS_KEY" do
+  puts "AWS_ACCESS_KEY not set"
+  nil
+end
+secret_key_id = ENV.fetch "AWS_SECRET_KEY" do
+  puts "AWS_SECRET_KEY not set"
+  nil
+end
+subnet_id = ENV.fetch "AWS_SUBNET" do
+  puts "AWS_SUBNET not set"
+  nil
+end
+
+agent_zip_url = ENV.fetch "AGENT_ZIP_URL" do
+  puts "AGENT_ZIP_URL not set. Will not download."
+  nil
+end
+
+install_dependencies = <<-SHELL
+  Install-WindowsFeature Net-Framework-Core
+SHELL
+
+configure_security_settings = <<-SHELL
+  Set-ExecutionPolicy -ExecutionPolicy Bypass
+SHELL
+
+setup_bosh_directory = <<-SHELL
+  If (Test-Path c:\\bosh){
+    Remove-Item -Recurse c:\\bosh
+  }
+
+  mkdir C:\\bosh
+SHELL
+
+download_agent = <<-SHELL
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  function Unzip
+  {
+      param([string]$zipfile, [string]$outpath)
+
+      [System.IO.Compression.ZipFile]::ExtractToDirectory($zipfile, $outpath)
+  }
+
+  Invoke-WebRequest "#{agent_zip_url}" -OutFile C:\\bosh\\agent.zip
+
+  Unzip C:\\bosh\\agent.zip C:\\bosh\\
+SHELL
+
+copy_agent_from_vagrant = <<-SHELL
+  cd C:\\vagrant
+  cp bosh-agent.exe c:\\bosh\\
+  cp agent.json c:\\bosh\\
+  cp service_wrapper.exe c:\\bosh\\
+  cp service_wrapper.xml c:\\bosh\\
+  cp settings.json c:\\bosh\\
+SHELL
+initialize_agent_service = <<-SHELL
+  if ($(C:\\bosh\\service_wrapper.exe status) -ne "NonExistent") {
+    if ($(C:\\bosh\\service_wrapper.exe status) -eq "Started") {
+      C:\\bosh\\service_wrapper.exe stop
+    }
+
+    C:\\bosh\\service_wrapper.exe uninstall
+  }
+  C:\\bosh\\service_wrapper.exe install
+  C:\\bosh\\service_wrapper.exe start
+SHELL
+
 Vagrant.configure(2) do |config|
-  config.vm.box = "https://s3.amazonaws.com/bosh-windows-integration/bosh-agent.windows-integration.box"
   config.vm.guest = :windows
   config.vm.communicator = "winrm"
+  config.winrm.username = winrm_username
+  config.winrm.password = winrm_password
+
   config.vm.provider :virtualbox do |v, override|
-    override.vm.network :private_network, ip: '192.168.60.4', id: :local
+    override.vm.box = "https://s3.amazonaws.com/windows-bosh-integration/bosh-agent.windows-integration.box"
   end
-	
 
-  config.vm.provision "shell", inline: <<-SHELL
-		if ($(C:\\vagrant\\service_wrapper.exe status) -ne "NonExistent") {
-			if ($(C:\\vagrant\\service_wrapper.exe status) -eq "Started") {
-				C:\\vagrant\\service_wrapper.exe stop
-			}
+  config.vm.provider :aws do |aws, override|
+    aws.ami = "ami-9a0558f0"
+    override.vm.box = "dummy"
+    aws.access_key_id = access_key_id
+    aws.secret_access_key = secret_key_id
+    aws.keypair_name = "agent-integration"
+    aws.subnet_id = subnet_id
+    aws.associate_public_ip = true
 
-			C:\\vagrant\\service_wrapper.exe uninstall
-		}
-		C:\\vagrant\\service_wrapper.exe install
-		C:\\vagrant\\service_wrapper.exe start
-  SHELL
+    aws.user_data = <<-SHELL
+    <powershell>
+    net user #{winrm_username} #{winrm_password} /ADD
+    net localgroup administrators #{winrm_username} /ADD
+    net localgroup WinRMRemoteWMIUsers__ #{winrm_username} /ADD
 
+    winrm set winrm/config/service '@{AllowUnencrypted="true"}'
+    winrm set winrm/config/service/auth '@{Basic="true"}'
+    netsh advfirewall set publicprofile state off
+    </powershell>
+    SHELL
+  end
+
+  config.vm.provision "shell", inline: install_dependencies
+  config.vm.provision "shell", inline: configure_security_settings
+  config.vm.provision "shell", inline: setup_bosh_directory
+  if agent_zip_url
+    config.vm.provision "shell", inline: download_agent
+  else
+    config.vm.provision "shell", inline: copy_agent_from_vagrant
+  end
+  config.vm.provision "shell", inline: initialize_agent_service
 end

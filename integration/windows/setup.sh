@@ -28,7 +28,7 @@ cat > $CONFIG_PATH <<EOF
       "Sources": [
         {
           "Type": "File",
-          "SettingsPath": "C:\\\\vagrant\\\\settings.json"
+          "SettingsPath": "settings.json"
         }
       ],
       "UseRegistry" : true
@@ -60,7 +60,6 @@ cat > $SETTINGS_PATH <<EOF
       "resolved": false,
       "use_dhcp": true,
       "default": ["dns", "gateway"],
-      "dns": ["10.10.0.2"],
       "mac": "",
       "preconfigured": false
     }
@@ -78,16 +77,9 @@ cat > $SERVICE_CONFIG <<EOF
 <service>
   <id>bosh-agent</id>
   <name>BOSH Agent</name>
-	<description>BOSH Agent</description>
+  <description>BOSH Agent</description>
   <executable>bosh-agent.exe</executable>
-  <arguments>-P windows -C C:\\vagrant\\agent.json</arguments>
-	<log mode="reset"/>
+  <arguments>-P windows -C agent.json</arguments>
+  <log mode="reset"/>
 </service>
 EOF
-
-if vagrant status | grep default | grep running
-then
-	vagrant provision
-else
-	vagrant up --provider=virtualbox
-fi
