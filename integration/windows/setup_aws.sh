@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-status=$(vagrant global-status | grep bosh-agent)
+status=$(vagrant status)
 if echo $status | grep running | grep virtualbox
 then
 	echo "Vagrant is already running with a different provider"

@@ -28,7 +28,10 @@ keypair_name = ENV.fetch "KEYPAIR_NAME" do
   puts "KEYPAIR_NAME not set"
   nil
 end
-
+private_key_path = ENV.fetch "PRIVATE_KEY_PATH" do
+	puts "PRIVATE_KEY_PATH not set"
+	nil
+end
 install_dependencies = <<-SHELL
   Install-WindowsFeature Net-Framework-Core -Verbose
 SHELL
@@ -118,7 +121,7 @@ Vagrant.configure(2) do |config|
 
     agent.vm.provider :aws do |aws, override|
       aws.ami = "ami-9a0558f0"
-      override.vm.box = "dummy"
+      override.vm.box = "https://github.com/mitchellh/vagrant-aws/raw/master/dummy.box"
       override.winrm.password = winrm_password
       override.winrm.username = winrm_username
       aws.access_key_id = access_key_id
@@ -150,7 +153,7 @@ Vagrant.configure(2) do |config|
     end
 
     nats.vm.provider :aws do |aws, override|
-      override.vm.box = "dummy"
+      override.vm.box = "https://github.com/mitchellh/vagrant-aws/raw/master/dummy.box"
       aws.ami = "ami-d05e75b8"
       aws.access_key_id = access_key_id
       aws.secret_access_key = secret_key_id
@@ -160,7 +163,7 @@ Vagrant.configure(2) do |config|
       aws.private_ip_address = private_ip
 
       override.ssh.username = "ubuntu"
-      override.ssh.private_key_path = "~/.ssh/#{keypair_name}.pem"
+      override.ssh.private_key_path = private_key_path
     end
 
     nats.vm.provision "shell", inline: start_nats, privileged: false
