@@ -12,17 +12,20 @@ secret_key_id = ENV.fetch "AWS_SECRET_KEY" do
   puts "AWS_SECRET_KEY not set"
   nil
 end
-elastic_ip = ENV.fetch "AWS_ELASTIC_IP" do
-  puts "AWS_ELASTIC_IP not set"
+nats_elastic_ip = ENV.fetch "NATS_ELASTIC_IP" do
+  puts "NATS_ELASTIC_IP not set"
   nil
 end
 subnet_id = ENV.fetch "AWS_SUBNET" do
   puts "AWS_SUBNET not set"
   nil
 end
-
 agent_zip_url = ENV.fetch "AGENT_ZIP_URL" do
   puts "AGENT_ZIP_URL not set. Will not download."
+  nil
+end
+keypair_name = ENV.fetch "KEYPAIR_NAME" do
+  puts "KEYPAIR_NAME not set"
   nil
 end
 
@@ -67,7 +70,7 @@ download_agent = <<-SHELL
 SHELL
 
 copy_agent_from_vagrant = <<-SHELL
-  cd C:\\vagrant
+  cd C:\\vagrant\\fixtures
   cp bosh-agent.exe c:\\bosh\\
   cp agent.json c:\\bosh\\
   cp service_wrapper.exe c:\\bosh\\
@@ -108,8 +111,6 @@ Vagrant.configure(2) do |config|
   config.vm.define "agent" do |agent|
     agent.vm.guest = :windows
     agent.vm.communicator = "winrm"
-    agent.winrm.username = winrm_username
-    agent.winrm.password = winrm_password
 
     agent.vm.provider :virtualbox do |v, override|
       override.vm.box = "https://s3.amazonaws.com/windows-bosh-integration/bosh-agent.windows-integration.box"
@@ -118,9 +119,11 @@ Vagrant.configure(2) do |config|
     agent.vm.provider :aws do |aws, override|
       aws.ami = "ami-9a0558f0"
       override.vm.box = "dummy"
+      override.winrm.password = winrm_password
+      override.winrm.username = winrm_username
       aws.access_key_id = access_key_id
       aws.secret_access_key = secret_key_id
-      aws.keypair_name = "agent-integration"
+      aws.keypair_name = keypair_name
       aws.subnet_id = subnet_id
       aws.user_data = setup_aws_winrm_user
       aws.associate_public_ip = true
@@ -151,13 +154,13 @@ Vagrant.configure(2) do |config|
       aws.ami = "ami-d05e75b8"
       aws.access_key_id = access_key_id
       aws.secret_access_key = secret_key_id
-      aws.keypair_name = "agent-integration"
+      aws.keypair_name = keypair_name
       aws.subnet_id = subnet_id
-      aws.elastic_ip = elastic_ip
+      aws.elastic_ip = nats_elastic_ip
       aws.private_ip_address = private_ip
 
       override.ssh.username = "ubuntu"
-      override.ssh.private_key_path = "~/.ssh/agent-integration.pem"
+      override.ssh.private_key_path = "~/.ssh/#{keypair_name}.pem"
     end
 
     nats.vm.provision "shell", inline: start_nats, privileged: false

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"os/exec"
 	"time"
 
@@ -18,8 +19,11 @@ type Agent struct {
 	tail *gexec.Session
 }
 
-func StartVagrant() (Agent, error) {
-	command := exec.Command("./setup.sh")
+func StartVagrant(provider string) (Agent, error) {
+	if len(provider) == 0 {
+		provider = "virtualbox"
+	}
+	command := exec.Command(fmt.Sprintf("./setup_%s.sh", provider))
 	session, err := gexec.Start(command, ginkgo.GinkgoWriter, ginkgo.GinkgoWriter)
 	if err != nil {
 		return Agent{}, err

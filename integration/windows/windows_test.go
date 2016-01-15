@@ -14,16 +14,22 @@ import (
 
 var _ = Describe("An Agent running on Windows", func() {
 	It("responds to 'ping' message over NATS", func() {
-		natsURL := fmt.Sprintf("nats://%s:4222", os.Getenv("AWS_ELASTIC_IP"))
-		agent, err := utils.StartVagrant()
-		defer agent.Stop()
+		vagrantProvider := os.Getenv("VAGRANT_PROVIDER")
+
+		agent, err := utils.StartVagrant(vagrantProvider)
 		if err != nil {
 			Fail(fmt.Sprintln("Could not build the bosh-agent project.\nError is:", err))
 		}
+		defer agent.Stop()
 
 		agentID := "agent." + agent.ID
 		senderID := "director.987-654-321"
 		message := fmt.Sprintf(`{"method":"ping","arguments":[],"reply_to":"%s"}`, senderID)
+
+		natsURL := "nats://172.31.180.3:4222"
+		if vagrantProvider == "aws" {
+			natsURL = fmt.Sprintf("nats://%s:4222", os.Getenv("NATS_ELASTIC_IP"))
+		}
 
 		testPing := func() string {
 			nc, err := nats.Connect(natsURL)
@@ -45,12 +51,6 @@ var _ = Describe("An Agent running on Windows", func() {
 			return string(receivedMessage.Data)
 		}
 
-		// if err != nil {
-		// Fail(fmt.Sprintf("Agent has not responded.\nError is: %v\n", err))
-		// }
-
 		Eventually(testPing, 30*time.Second, 1*time.Second).Should(Equal(`{"value":"pong"}`))
-
-		// Expect(string(receivedMessage.Data)).To(Equal(`{"value":"pong"}`))
 	})
 })
